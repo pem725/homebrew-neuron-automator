@@ -2,7 +2,7 @@ class NeuronAutomator < Formula
   desc "Automated Neuron Daily newsletter reader with intelligent scheduling"
   homepage "https://github.com/pem725/NeuronAutomator"
   url "https://github.com/pem725/NeuronAutomator/archive/refs/tags/v1.5.0.tar.gz"
-  sha256 "" # Will be calculated when you create the release
+  sha256 "4a3aa245ccfeee04863d691527ab28414dd62008532279c06f260579a1f7ded2"
   license "MIT"
   head "https://github.com/pem725/NeuronAutomator.git", branch: "main"
 
