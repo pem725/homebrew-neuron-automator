@@ -23,3 +23,14 @@ logs/
 
 # Local testing files
 local-test/
+
+# Email and HTML files (may contain sensitive info)
+*.eml
+*.html
+*.backup
+
+# Any files with email addresses or sensitive patterns
+*@gmail.com*
+*secrets*
+*password*
+*token*
