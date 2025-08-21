@@ -1,0 +1,126 @@
+name: Test Homebrew Formula
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Test weekly to catch dependency issues
+    - cron: '0 10 * * 1'
+
+jobs:
+  test-formula:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        os: [macos-13, macos-14] # Intel and Apple Silicon
+    
+    steps:
+    - name: Checkout tap
+      uses: actions/checkout@v4
+    
+    - name: Set up Homebrew
+      id: set-up-homebrew
+      uses: Homebrew/actions/setup-homebrew@master
+    
+    - name: Cache Homebrew packages
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/Library/Caches/Homebrew
+          /opt/homebrew/var/homebrew/locks
+        key: ${{ runner.os }}-brew-${{ hashFiles('Formula/neuron-automator.rb') }}
+        restore-keys: |
+          ${{ runner.os }}-brew-
+    
+    - name: Install dependencies
+      run: |
+        # Install Chrome for testing
+        brew install --cask google-chrome
+        
+        # Ensure Python is available
+        brew install python@3.11
+    
+    - name: Test formula installation
+      run: |
+        # Install from local tap
+        brew install --build-from-source --verbose ./Formula/neuron-automator.rb
+    
+    - name: Test basic functionality
+      run: |
+        # Test that executables work
+        neuron-automation --version
+        neuron-automation --help
+        
+        # Test blacklist rewind tool
+        blacklist-rewind --help
+        
+        # Test configuration creation
+        ls -la ~/.config/neuron-automation/
+        
+        # Check launchd service was created
+        ls -la ~/Library/LaunchAgents/com.neuron.automation.plist
+    
+    - name: Test formula audit
+      run: |
+        brew audit --strict --online ./Formula/neuron-automator.rb
+    
+    - name: Test formula style
+      run: |
+        brew style ./Formula/neuron-automator.rb
+    
+    - name: Test uninstallation
+      run: |
+        brew uninstall neuron-automator
+        
+        # Verify cleanup (but config should remain)
+        [ ! -f "$(brew --prefix)/bin/neuron-automation" ]
+        [ -d ~/.config/neuron-automation ] # Config should remain
+
+  test-upgrade:
+    runs-on: macos-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout tap
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2 # Need previous commit for comparison
+    
+    - name: Set up Homebrew
+      uses: Homebrew/actions/setup-homebrew@master
+    
+    - name: Test upgrade scenario
+      run: |
+        # Install previous version if it exists
+        if git show HEAD~1:Formula/neuron-automator.rb > /tmp/old-formula.rb 2>/dev/null; then
+          echo "Testing upgrade from previous version"
+          brew install --build-from-source /tmp/old-formula.rb
+          neuron-automation --version
+          
+          # Now upgrade to current version
+          brew upgrade --build-from-source ./Formula/neuron-automator.rb
+          neuron-automation --version
+        else
+          echo "No previous version found, skipping upgrade test"
+        fi
+
+  validate-version:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout tap
+      uses: actions/checkout@v4
+    
+    - name: Validate version consistency
+      run: |
+        # Extract version from formula
+        FORMULA_VERSION=$(grep 'url.*v[0-9]' Formula/neuron-automator.rb | sed 's/.*v\([0-9.]*\).*/\1/')
+        echo "Formula version: $FORMULA_VERSION"
+        
+        # TODO: When you have releases, add version validation against GitHub releases
+        # For now, just ensure version format is correct
+        if [[ ! $FORMULA_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Invalid version format: $FORMULA_VERSION"
+          exit 1
+        fi
